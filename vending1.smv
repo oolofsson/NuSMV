@@ -49,4 +49,5 @@ LTLSPEC
 --      acc_payment = FALSE
 --    -> State: 1.6 <-
 
--- Here we have a cae were payment is true, but in the ready state, therefore, realease item is not true in the next state.
+-- Here we have a case were acc_payment is true, but in the ready state, therefore dispense_item is not true
+-- in the next state and the item is not released.
