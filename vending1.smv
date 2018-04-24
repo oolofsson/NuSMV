@@ -3,6 +3,7 @@ VAR
   choice:  boolean;
   payment: boolean;
   acc_payment: boolean;
+  n_items: 0 .. 1000;
   state:   { ready, expect_payment, dispense_item };
 
 ASSIGN
@@ -16,15 +17,27 @@ ASSIGN
   esac;
 
   init (acc_payment) := FALSE;
-  next (acc_payment) := (state = expect_payment & payment);
+  next (acc_payment) := (state = expect_payment & payment & n_items > 0);
+  next (n_items) := case
+                      release_item: n_items - 1;
+                      TRUE: n_items;
+                    esac;
 
 
 DEFINE
-  release_item := (state = dispense_item);
+  release_item := (state = dispense_item) & n_items > 0;
 
 LTLSPEC
   G(acc_payment -> F release_item);
+LTLSPEC
+  G(X(acc_payment) -> n_items > 0);
 
+-- since if release_item is true, n_items - 1 is true. so this should hold. 
+LTLSPEC
+  G(state = dispense_item -> release_item);
+
+CTLSPEC
+  AG(n_items >= 0);
 /--
   -- specification  G (acc_payment ->  F release_item)  is false
   -- as demonstrated by the following execution sequence
