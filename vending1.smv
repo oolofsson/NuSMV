@@ -3,41 +3,41 @@ VAR
   choice:  boolean;
   payment: boolean;
   acc_payment: boolean;
-  n_items: 0 .. 1000;
+  n_items: 0 .. 20;
+  y: 0 .. 20;
   state:   { ready, expect_payment, dispense_item };
 
 ASSIGN
+  init (n_items) := 20;
   init (state) := ready;
   next (state) := case
 		    state = ready          & choice:  expect_payment;
 		    state = expect_payment & acc_payment: dispense_item;
-        state = expect_payment & !choice & !payment: ready;
-		    state = dispense_item: ready;
-		    TRUE: state;
+		    state = expect_payment & !choice & !payment: ready;
+		    state = dispense_item:	      ready;
+		    TRUE:                             state;
   esac;
 
   init (acc_payment) := FALSE;
   next (acc_payment) := (state = expect_payment & payment & n_items > 0);
-  next (n_items) := case
-                      release_item: n_items - 1;
-                      TRUE: n_items;
-                    esac;
 
+  next (n_items) := case
+	(state = dispense_item & n_items > 0): n_items - 1;
+	TRUE: n_items;
+  esac;
 
 DEFINE
-  release_item := (state = dispense_item) & n_items > 0;
+  release_item := (state = dispense_item & n_items > 0);
 
 LTLSPEC
   G(acc_payment -> F release_item);
 LTLSPEC
   G(X(acc_payment) -> n_items > 0);
-
--- since if release_item is true, n_items - 1 is true. so this should hold. 
 LTLSPEC
-  G(state = dispense_item -> release_item);
-
+  G(release_item -> n_items = next(n_items) + 1);
 CTLSPEC
   AG(n_items >= 0);
+  
 /--
   -- specification  G (acc_payment ->  F release_item)  is false
   -- as demonstrated by the following execution sequence
