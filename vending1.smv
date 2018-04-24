@@ -10,13 +10,14 @@ ASSIGN
   next (state) := case
 		    state = ready          & choice:  expect_payment;
 		    state = expect_payment & acc_payment: dispense_item;
-		    state = expect_payment & !choice: ready;
-		    state = dispense_item:	      ready;
-		    TRUE:                             state;
+        state = expect_payment & !choice & !payment: ready;
+		    state = dispense_item: ready;
+		    TRUE: state;
   esac;
 
   init (acc_payment) := FALSE;
   next (acc_payment) := (state = expect_payment & payment);
+
 
 DEFINE
   release_item := (state = dispense_item);
@@ -24,30 +25,32 @@ DEFINE
 LTLSPEC
   G(acc_payment -> F release_item);
 
+/--
   -- specification  G (acc_payment ->  F release_item)  is false
   -- as demonstrated by the following execution sequence
---  Trace Description: LTL Counterexample
---  Trace Type: Counterexample
---    -> State: 1.1 <-
---      choice = FALSE
---      payment = FALSE
---      acc_payment = FALSE
---      state = ready
---      release_item = FALSE
---    -> State: 1.2 <-
---      choice = TRUE
---    -> State: 1.3 <-
---      choice = FALSE
---      payment = TRUE
---      state = expect_payment
---    -> State: 1.4 <-
---      payment = FALSE
---      acc_payment = TRUE
---      state = ready
+  Trace Description: LTL Counterexample
+  Trace Type: Counterexample
+    -> State: 1.1 <-
+      choice = FALSE
+      payment = FALSE
+      acc_payment = FALSE
+      state = ready
+      release_item = FALSE
+    -> State: 1.2 <-
+      choice = TRUE
+    -> State: 1.3 <-
+      choice = FALSE
+      payment = TRUE
+      state = expect_payment
+    -> State: 1.4 <-
+      payment = FALSE
+      acc_payment = TRUE
+      state = ready
     -- Loop starts here
---    -> State: 1.5 <-
---      acc_payment = FALSE
---    -> State: 1.6 <-
+    -> State: 1.5 <-
+      acc_payment = FALSE
+    -> State: 1.6 <-
 
--- Here we have a case were acc_payment is true, but in the ready state, therefore dispense_item is not true
--- in the next state and the item is not released.
+ Here we have a case were acc_payment is true, but in the ready state, therefore dispense_item is not true
+ in the next state and the item is not released.
+--/
