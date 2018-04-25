@@ -1,8 +1,6 @@
-MODULE semaphore(active, pid)
+MODULE user(semaphore, active)
 VAR
-  state0 : { idle, entering, critical, exiting }; -- keep track of state for each process
-  state1 : { idle, entering, critical, exiting };
-  nextCritical : boolean; -- which process can enter into the critical section next
+  state : { idle, entering, critical, exiting };
 ASSIGN
   init(state0) := idle;
   init(state1) := idle;
@@ -22,88 +20,64 @@ ASSIGN
     state0 = exiting : idle;
     TRUE : state0;
   esac;
-  next(state1) := case
-    !active : state1;
-    pid != 1: state1;
-    state1 = idle : { idle, entering };
-    state1 = entering & state0 != critical & nextCritical = TRUE: critical;
-    state1 = critical : { critical, exiting };
-    state1 = exiting : idle;
-    TRUE : state1;
-  esac;
-  next(nextCritical) := case
-    state1 = entering & state0 = idle: TRUE;
-    state0 = entering & state1 = idle: FALSE;
-    state1 = critical & state0 = entering: FALSE;
-    state0 = critical & state1 = entering: TRUE;
-    TRUE: nextCritical;
-  esac;
-SPEC AG !(state0 = critical & state1 = critical); -- safety
-
-SPEC AG (state1 = entering -> AF state1 = critical); -- liveness
-SPEC AG (state0 = entering -> AF state0 = critical); -- liveness
-
-
-MODULE user(semaphore, running, pid)
-VAR
-  sem: semaphore(running, pid);
+-- Make sure each user gets a chance to go through all states.
+FAIRNESS
+  state = exiting;
 
 MODULE main
 VAR
-  running: 0..1;
-  proc1 : user(semaphore, next(running) = 0, 0);
-  proc2 : user(semaphore, next(running) = 1, 1);
--- FAIRNESS
---    running = 0
--- FAIRNESS
---    running = 1
-/--
+  semaphore : boolean;
+  -- Keep track of which user is running instead of using processes
+  running : 0..1;
+  proc1 : user(semaphore, next(running) = 0);
+  proc2 : user(semaphore, next(running) = 1);
+ASSIGN
+  init(semaphore) := FALSE;
+  -- If the semaphore is available (false) then the active user can go to critical
+  -- and take the semaphore (true). Once the active user exits critical it also
+  -- releases the semaphore (false).
+  next(semaphore) := case
+    proc1.state = entering & next(running) = 0 & !semaphore : TRUE;
+    proc1.state = exiting & running = 0 & semaphore : FALSE;
+    proc2.state = entering & next(running) = 1 & !semaphore : TRUE;
+    proc2.state = exiting & running = 1 & semaphore : FALSE;
+    TRUE : semaphore;
+esac;
 
--- specification AG !(state0 = critical & state1 = critical) IN proc1.sem is true
--- specification AG (state1 = entering -> AF state1 = critical) IN proc1.sem is true
--- specification AG (state0 = entering -> AF state0 = critical) IN proc1.sem is false
--- as demonstrated by the following execution sequence
-Trace Description: CTL Counterexample
-Trace Type: Counterexample
--> State: 1.1 <-
-running = 0
-proc1.sem.state0 = idle
-proc1.sem.state1 = idle
-proc1.sem.nextCritical = FALSE
-proc2.sem.state0 = idle
-proc2.sem.state1 = idle
-proc2.sem.nextCritical = FALSE
--> State: 1.2 <-
-proc1.sem.state0 = entering
--- Loop starts here
--> State: 1.3 <-
-running = 1
--> State: 1.4 <-
--- specification AG !(state0 = critical & state1 = critical) IN proc2.sem is true
--- specification AG (state1 = entering -> AF state1 = critical) IN proc2.sem is false
--- as demonstrated by the following execution sequence
-Trace Description: CTL Counterexample
-Trace Type: Counterexample
--> State: 2.1 <-
-running = 0
-proc1.sem.state0 = idle
-proc1.sem.state1 = idle
-proc1.sem.nextCritical = FALSE
-proc2.sem.state0 = idle
-proc2.sem.state1 = idle
-proc2.sem.nextCritical = FALSE
--> State: 2.2 <-
-running = 1
-proc2.sem.state1 = entering
--> State: 2.3 <-
-proc2.sem.nextCritical = TRUE
--- Loop starts here
--> State: 2.4 <-
-running = 0
--> State: 2.5 <-
--- specification AG (state0 = entering -> AF state0 = critical) IN proc2.sem is true
---/
+SPEC AG !(proc1.state = critical & proc2.state = critical); -- safety
+
+SPEC AG (proc1.state = entering -> AF proc1.state = critical); -- liveness
+
 /--
-In this stack trace the process with pid 0 is always running so process with pid 1
-can never enter the critical section
+Without exiting fairness:
+-- specification AG !(proc1.state = critical & proc2.state = critical)  is true
+-- specification AG (proc1.state = entering -> AF proc1.state = critical)  is false
+-- as demonstrated by the following execution sequence
+Trace Description: CTL Counterexample
+Trace Type: Counterexample
+  -> State: 1.1 <-
+    semaphore = FALSE
+    running = 0
+    proc1.state = idle
+    proc2.state = idle
+  -> State: 1.2 <-
+    proc1.state = entering
+  -> State: 1.3 <-
+    running = 1
+    proc2.state = entering
+  -- Loop starts here
+  -> State: 1.4 <-
+    semaphore = TRUE
+    proc2.state = critical
+  -> State: 1.5 <-
+    proc2.state = exiting
+  -> State: 1.6 <-
+    semaphore = FALSE
+    proc2.state = idle
+  -> State: 1.7 <-
+    proc2.state = entering
+  -> State: 1.8 <-
+    semaphore = TRUE
+    proc2.state = critical
+proc2 never lets proc1 get to critical and proc1 can therefore not exiting
 --/
