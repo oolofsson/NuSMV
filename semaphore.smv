@@ -7,6 +7,13 @@ ASSIGN
   init(state0) := idle;
   init(state1) := idle;
   next(state0) := case
+  /--
+  In the critical sections we only enter if it is our turn to enter the critical section.
+  The nextCritical variable is changed if one thread is in the critical section and
+  the other wants to enter it, then the nextCritical variable is changed to the 
+  other thread and the thread that is currently in the critical section can not
+  enter it until the other thread has finished working in the critical section
+  --/
     !active : state0;
     pid != 0: state0;
     state0 = idle : { idle, entering };
